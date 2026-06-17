@@ -1,0 +1,10 @@
+{
+  "name": "kai-api",
+  "description": "Work with the KAI API to configure, debug, and eval agents, and to analyze conversations.",
+  "version": "0.1.0",
+  "author": {
+    "name": "KAI Team"
+  },
+  "homepage": "https://saas.kaiteam.ru",
+  "keywords": ["kai", "agents", "llm", "api", "evals"]
+}

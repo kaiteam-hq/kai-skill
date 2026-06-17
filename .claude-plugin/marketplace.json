@@ -1,0 +1,15 @@
+{
+  "name": "kai",
+  "owner": {
+    "name": "KAI Team"
+  },
+  "description": "KAI agent-platform skills for Claude Code.",
+  "plugins": [
+    {
+      "name": "kai-api",
+      "source": "./",
+      "description": "Configure, debug, and eval KAI agents and analyze conversations via the public KAI API.",
+      "version": "0.1.0"
+    }
+  ]
+}
