@@ -28,8 +28,7 @@ The skill auto-activates when you ask Claude Code to work with KAI agents or con
 ## What's inside
 
 - `skills/kai-api/SKILL.md` — the guide: four workflows (configure / debug / eval / analyze).
-- `skills/kai-api/kai.py` — a single-file CLI over the API (requires PyYAML:
-  `pip install pyyaml`).
+- `skills/kai-api/kai.py` — a single-file CLI over the API.
 
 ## Reference
 

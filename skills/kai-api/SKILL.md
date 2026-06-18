@@ -46,7 +46,7 @@ kai.py agents list --workspace <ws>         # agents in a workspace  (--workspac
 | `KAI_API_TOKEN` | personal token `kai_...` | — (required) |
 | `KAI_BASE_URL` | base URL **without** `/api` | `https://saas.kaiteam.ru` |
 
-**Requirements:** Python 3 and **PyYAML** (`pip install pyyaml`).
+**Requirements:** Python 3.
 
 Mint the token in the UI: click your name in the sidebar → `/account` → **API Token** →
 `Generate`. The full `kai_...` value is shown **once** — copy it. The token acts as your
@@ -219,7 +219,6 @@ conversation into further programmatic analysis.
 | `config push` rejected: "Only draft version can be updated" | Push only edits the **draft**; a published `vN` is immutable. Re-pull with `--mode draft` and push that. |
 | `config push` rejected: prompt / preset / Jinja | Config validation. Fix the file (prompt ≤50000 chars, valid Jinja, `model_preset` from `kai.py model-presets`) and push again. |
 | `debug say` prints "no new messages within Ns" | Queue worker not consuming the turn; check the worker is up, or raise `--timeout`. |
-| `kai.py requires PyYAML` | `pip install pyyaml` (required for every command). |
 | Connection error | `KAI_BASE_URL` is wrong or unreachable. |
 
 ## References
