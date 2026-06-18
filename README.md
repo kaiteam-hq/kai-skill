@@ -9,13 +9,12 @@ personal API token. No access to the KAI source repo is needed.
 ## Install
 
 ```bash
-/plugin marketplace add https://sourcecraft.dev/kaiteam/kai-skill.git
+/plugin marketplace add https://git.sourcecraft.dev/kaiteam/kai-skill.git
 /plugin install kai-api@kai
 ```
 
-> The marketplace must be cloneable by your client. Anonymous HTTPS clone requires the
-> `kaiteam` org to be public; until then, members can use the SSH remote
-> `ssh://ssh.sourcecraft.dev/kaiteam/kai-skill.git`.
+> Cloneable anonymously over HTTPS (the `kaiteam` org is public). Members can also use the
+> SSH remote `ssh://ssh.sourcecraft.dev/kaiteam/kai-skill.git`.
 
 Then provide your token (and, if not prod, a base URL):
 
@@ -29,8 +28,8 @@ The skill auto-activates when you ask Claude Code to work with KAI agents or con
 ## What's inside
 
 - `skills/kai-api/SKILL.md` — the guide: four workflows (configure / debug / eval / analyze).
-- `skills/kai-api/kai.py` — a stdlib-only CLI over the API. PyYAML is needed only for the
-  `config pull/push/publish` file commands; everything else runs with any `python3`.
+- `skills/kai-api/kai.py` — a single-file CLI over the API (requires PyYAML:
+  `pip install pyyaml`).
 
 ## Reference
 
