@@ -1,0 +1,22 @@
+on:
+  push:
+    - workflows: [mirror]
+  schedule:
+    - workflows: [mirror]
+      cron: "0 3 * * *"
+
+workflows:
+  mirror:
+    tasks:
+      - name: mirror-to-github
+        env:
+          GITHUB_MIRROR_TOKEN: ${{ secrets.GITHUB_MIRROR_TOKEN }}
+        cubes:
+          - name: push-to-github
+            script:
+              # The workspace clone may be shallow; a full history is required to push.
+              - git fetch --unshallow origin || true
+              - git fetch origin --prune --tags '+refs/heads/*:refs/remotes/origin/*'
+              - printf 'machine github.com\nlogin x-access-token\npassword %s\n' "$GITHUB_MIRROR_TOKEN" > ~/.netrc
+              - chmod 600 ~/.netrc
+              - git push --force --prune https://github.com/kaiteam-hq/kai-skill.git '+refs/remotes/origin/*:refs/heads/*' '+refs/tags/*:refs/tags/*'
