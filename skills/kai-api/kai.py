@@ -248,6 +248,12 @@ def cmd_users_get(args):
     print_json(request("GET", f"/workspaces/{ws}/users", query={"ids": args.ids}))
 
 
+def cmd_users_fields(args):
+    ws = workspace(args)
+    request("PUT", f"/workspaces/{ws}/users/{args.user_id}/fields", body=kv_pairs(args.field))
+    print("user fields replaced")
+
+
 # --------------------------------------------------------------------------- #
 # configure: agents + versions + config files
 # --------------------------------------------------------------------------- #
@@ -818,6 +824,9 @@ def build_parser():
     us = sub.add_parser("users", help="resolve users").add_subparsers(dest="sub", required=True)
     g = us.add_parser("get", parents=[ws]); g.add_argument("ids", help="comma-separated user ids")
     g.set_defaults(func=cmd_users_get)
+    g = us.add_parser("fields", parents=[ws], help="replace user fields (full set; debug users only)")
+    g.add_argument("user_id"); g.add_argument("field", nargs="*", help="key=value ...")
+    g.set_defaults(func=cmd_users_fields)
 
     return p
 

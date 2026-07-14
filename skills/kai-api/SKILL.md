@@ -140,7 +140,8 @@ kai.py debug run <conversation_id>
 ```
 
 Craft history / state without generating: `debug msg-add` (insert any role),
-`debug msg-edit` / `debug msg-del`, `debug fields <conv> k=v ...` (replace conversation_fields).
+`debug msg-edit` / `debug msg-del`, `debug fields <conv> k=v ...` (replace conversation_fields),
+`users fields <user_id> k=v ...` (replace the synthetic user's fields — debug users only).
 
 ## Workflow 3 — eval an agent
 
@@ -182,6 +183,7 @@ kai.py conversations get <conversation_id>             # metadata + fields + tag
 kai.py conversations dump <conversation_id>            # readable transcript (resolves user name)
 kai.py conversations dump <conversation_id> --json     # full structured export (for bulk analysis)
 kai.py users get <id1,id2>                             # resolve user names/contacts
+kai.py users fields <user_id> k=v ...                  # replace user fields (full set; debug users only)
 ```
 
 `dump` is the unit of analysis: it follows the message cursor to the end, stitches
