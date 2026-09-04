@@ -25,10 +25,19 @@ export KAI_BASE_URL=https://saas.kaiteam.ru  # default if unset
 
 The skill auto-activates when you ask Claude Code to work with KAI agents or conversations.
 
+## Update
+
+Claude Code caches the plugin per version. To pick up a new release:
+
+```bash
+/plugin marketplace update kai
+/plugin update kai-api@kai
+```
+
 ## What's inside
 
 - `skills/kai-api/SKILL.md` — the guide: four workflows (configure / debug / eval / analyze).
-- `skills/kai-api/kai.py` — a single-file CLI over the API.
+- `skills/kai-api/kai.py` — a single-file CLI over the API (tracks API spec 0.8.7).
 
 ## Reference
 
