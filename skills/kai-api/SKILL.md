@@ -13,8 +13,11 @@ hand-build curl/pagination/poll loops.
 The full API spec is **`${KAI_BASE_URL}/api/openapi.yaml`** (RU; public, no auth — browse it as
 Swagger UI at `${KAI_BASE_URL}/swagger`) — paths, request/response shapes, the
 agent **config schema** (`AgentConfig` / `SingleAgentConfig` / `GraphAgentConfig` / `Tool`
-/ `Function`), version/publish endpoints and eval shapes. If it ever disagrees with the
-running server, trust this SKILL and its `kai.py`.
+/ `Function`), version/publish endpoints and eval shapes. The spec itself warns that the
+contract is **not frozen** and may change incompatibly; this SKILL and `kai.py` track spec
+`0.8.7`. If they ever disagree with the running server, trust this SKILL and its `kai.py`.
+A few discovery endpoints `kai.py` uses (`/members/me`, `/workspaces`, `/model-presets`) are
+not in the spec but are live.
 
 ## Invocation
 
@@ -37,6 +40,8 @@ export KAI_BASE_URL=https://saas.kaiteam.ru  # default if unset
 kai.py whoami                               # verify the token  (see Invocation above)
 kai.py workspaces                           # discover workspace ids
 kai.py agents list --workspace <ws>         # agents in a workspace  (--workspace required)
+kai.py channels list --workspace <ws>       # channels (platform, bound agent, draft|latest)
+kai.py members list --workspace <ws>        # member accounts of the workspace
 ```
 
 ## Setup
@@ -82,6 +87,21 @@ prints the validation reason (empty/too-long prompt > 50000 chars, bad Jinja, un
 preset) — fix the file and push again. `PUBLISHED` ⟺ the agent's
 `draft_version_hash == latest_version_hash` (so you can tell if the draft has unpublished edits).
 
+### Which version is live where
+
+A channel runs an agent in `agent_version_mode` `latest` (newest published `vN`) or
+`draft`. To point a channel at another agent, flip it to the draft, or disable it:
+
+```bash
+kai.py channels list                                   # id / slug / platform / agent / mode / enabled
+kai.py channels set <channel_id|slug> --mode draft     # GATED (confirm) — affects live traffic
+kai.py channels set <channel_id|slug> --agent-id <id> --enabled|--disabled
+```
+
+`channels set` reads the channel, merges your flags and PUTs the full state back (channel
+platform settings — email/bitrix/amo — are carried over untouched; write-only passwords stay
+as they are). The `debug` channel cannot be renamed or disabled.
+
 ### Config file format
 
 `config pull` writes a frontmatter+body file (like this SKILL.md): the big `prompt` is the
@@ -109,8 +129,13 @@ extensions: []
 
 Field reference: the human field guide is `${KAI_BASE_URL}/doc/ru/single-agent-format`
 (and `.../graph-agent-format`); exact types & validation are `AgentConfig` & friends in
-`${KAI_BASE_URL}/api/openapi.yaml`. For `graph_agent` there is no prompt: `nodes` go in the
-frontmatter and the body is empty. The agent **type** cannot be changed.
+`${KAI_BASE_URL}/api/openapi.yaml`. `single_agent` fields beyond the example above (all
+optional, defaults shown by `config pull`): `hello_msg`, `timeout` (ISO-8601 timedelta,
+e.g. `PT30S`) + `on_timeout` (extension `Function`s), `on_channel_not_available`,
+`possible_attachments`, `imitate_human` + `imitate_human_timings`, `ping` (`const` |
+`delays`, `start`/`end` window, `approve`). For `graph_agent` there is no prompt: `nodes`
+(`start` node required; `agent` / `condition` node types, no cycles) go in the frontmatter
+and the body is empty. The agent **type** cannot be changed.
 
 To fill in `extensions` / `tools` / `on_timeout`, the docs are the source of truth for the
 tool/extension model — don't reconstruct it here:
@@ -139,9 +164,19 @@ kai.py debug tool-exec <conversation_id> <tool_call_id>
 kai.py debug run <conversation_id>
 ```
 
+Re-running a tool call whose result already exists is rejected with 409 — `debug msg-del` the
+old tool message first.
+
 Craft history / state without generating: `debug msg-add` (insert any role),
 `debug msg-edit` / `debug msg-del`, `debug fields <conv> k=v ...` (replace conversation_fields),
 `users fields <user_id> k=v ...` (replace the synthetic user's fields — debug users only).
+Known user field keys (rendered into the prompt): `fullname`, `phone`, `email`, `language`,
+`country`; `debug new --field k=v` sets them at creation.
+
+**Clean up** when done: every `debug new` creates a synthetic user + conversation.
+`kai.py users delete <user_id>` cascade-deletes the debug user with all its conversations
+(messages, fields, tags); the server refuses it for non-debug users. `kai.py users me` is your
+own (non-debug) web user — the owner of the web test-chat, which only you can push into.
 
 ## Workflow 3 — eval an agent
 
@@ -163,8 +198,9 @@ kai.py eval cases list <agent_id>
 kai.py eval cases create <agent_id> --file case.json   # EvalCaseUpsert JSON
 kai.py eval run <agent_id> --mode draft --poll         # start, wait, print passed/failed/errored
 kai.py eval run <agent_id> --case-ids <id1>,<id2> --poll  # partial run — only these cases (default all)
-kai.py eval runs <agent_id>                            # history
+kai.py eval runs <agent_id>                            # history (seq DESC; --all to page, --seq N for one)
 kai.py eval case-runs <agent_id> <run_id>              # per-case verdicts + judge explanations
+kai.py eval cancel <agent_id> <run_id>                 # stop a run; finished cases keep their verdicts
 ```
 
 `eval run --poll` waits until the run leaves `running`, then prints a per-case table
@@ -172,23 +208,37 @@ kai.py eval case-runs <agent_id> <run_id>              # per-case verdicts + jud
 a time (sequentially)** — a run takes about as long as the sum of its cases, so a full suite
 gets slow as it grows. Pass `--case-ids id1,id2` (ids from `eval cases list`) to run only the
 case(s) you're iterating on and get a verdict in a fraction of the time; omit it to run all
-cases (e.g. the final pre-publish check). Case shapes: `EvalCaseUpsert` in `${KAI_BASE_URL}/api/openapi.yaml`.
+cases (e.g. the final pre-publish check). Case shapes: `EvalCaseUpsert` in `${KAI_BASE_URL}/api/openapi.yaml`
+— `slug` (kebab-case, unique per agent), `criteria` (substituted for `{{criteria}}` in the
+judge prompt), `messages` (`user`/`assistant` only; a tool result lives inside the assistant
+message's `tool_calls[].response`), `conversation_fields`, `user_fields`. For a
+`graph_agent`, an assistant message that carries `tool_calls` must also set `agent_id` to
+the graph node that emitted it.
+
+`ERROR` verdicts carry a category: `agent_error` (generation raised), `agent_no_message`
+(turn produced nothing), `judge_error`, `agent_loop_limit` (tool-call loop),
+`tool_simulator_error` (LLM tool simulator failed). Runs are identified by UUID `id` in the
+API and by the 1-based `seq` in the UI — `eval runs --seq N` maps one to the other.
 
 ## Workflow 4 — analyze conversations
 
 ```bash
 kai.py conversations list --limit 20                   # newest first (cursor-paginated)
 kai.py conversations list --all --channel-id <ch>      # all pages for a channel
-kai.py conversations get <conversation_id>             # metadata + fields + tags
+kai.py conversations list --channel-id <ch> --agent-id <a>   # agent filter is channel-scoped (needs --channel-id)
+kai.py conversations get <conversation_id>             # metadata + fields + tags + channel_link
 kai.py conversations dump <conversation_id>            # readable transcript (resolves user name)
 kai.py conversations dump <conversation_id> --json     # full structured export (for bulk analysis)
-kai.py users get <id1,id2>                             # resolve user names/contacts
+kai.py users get <id1,id2>                             # resolve user names/contacts (≤200 ids; foreign ids are silently omitted)
 kai.py users fields <user_id> k=v ...                  # replace user fields (full set; debug users only)
+kai.py users delete <user_id>                          # cascade-delete a debug user + its conversations
 ```
 
 `dump` is the unit of analysis: it follows the message cursor to the end, stitches
-`tool_calls` to their results, and resolves `user_id` → name. Use `--json` to feed a whole
-conversation into further programmatic analysis.
+`tool_calls` to their results, lists attached `images` URLs and the time-aware
+`response_timeout`, and resolves `user_id` → name. Use `--json` to feed a whole
+conversation into further programmatic analysis. Conversation `status` values:
+`active`, `closing`, `fast_closing`, `closed`, `timeout`, `bot_is_disabled`, `bot_is_blocked`.
 
 ## Gotchas
 
@@ -207,7 +257,9 @@ conversation into further programmatic analysis.
 - **`agent_version_mode` (draft|latest)** is a property of a conversation/eval-run. You pass
   `--mode draft|latest` and `kai.py` resolves it to the concrete version for you.
 - **Every write touches real data** (live conversations, LLM tokens spent on eval runs).
-  Only **`config publish`** asks for confirmation; every other write runs immediately.
+  Only **`config publish`** and **`channels set`** ask for confirmation (`--confirm` to skip);
+  every other write runs immediately. `users delete` is irreversible but the server limits
+  it to debug users.
   Conversation bodies contain customer PII — don't paste raw dumps into PRs/issues/external
   services.
 
@@ -221,6 +273,10 @@ conversation into further programmatic analysis.
 | `config push` rejected: "Only draft version can be updated" | Push only edits the **draft**; a published `vN` is immutable. Re-pull with `--mode draft` and push that. |
 | `config push` rejected: prompt / preset / Jinja | Config validation. Fix the file (prompt ≤50000 chars, valid Jinja, `model_preset` from `kai.py model-presets`) and push again. |
 | `debug say` prints "no new messages within Ns" | Queue worker not consuming the turn; check the worker is up, or raise `--timeout`. |
+| `debug tool-exec` → HTTP 409 | The tool_call already has a result. `debug msg-del` that tool message, then re-run. |
+| `conversations list` → 400 "agent_id filter requires channel_id" | `--agent-id` only works together with `--channel-id`. |
+| `debug new` → 400 "no published version" | `--mode latest` on an agent that was never published; use `--mode draft` or `config publish`. |
+| `users delete` / `users fields` → 400 | Only debug (synthetic) users can be deleted/edited; real end-users are read-only. |
 | Connection error | `KAI_BASE_URL` is wrong or unreachable. |
 
 ## References
