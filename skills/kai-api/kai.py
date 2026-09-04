@@ -293,16 +293,38 @@ def _confirm(banner, args):
         die("aborted by user", code=0)
 
 
-def cmd_channels_set(args):
-    """Change a live channel's agent / version mode / enabled / notifications (PUT takes the full state)."""
-    ws = workspace(args)
+PLATFORM_SETTINGS = {"bitrix": "bitrix_settings", "amo": "amo_settings", "email": "email_settings"}
+
+
+def find_channel(ws, id_or_slug):
     channels = request("GET", f"/workspaces/{ws}/channels") or []
-    ch = next((c for c in channels if c["id"] == args.channel_id or c.get("slug") == args.channel_id), None)
-    if not ch:
-        die(f"channel {args.channel_id} not found in workspace {ws}")
+    ch = next((c for c in channels if c["id"] == id_or_slug or c.get("slug") == id_or_slug), None)
+    return ch or die(f"channel {id_or_slug} not found in workspace {ws}")
+
+
+def cmd_channels_create(args):
+    """POST a new email/bitrix channel from a JSON file (the server verifies the mailbox/portal first)."""
+    ws = workspace(args)
+    body = read_json_file(args.file)
+    print_json(request("POST", f"/workspaces/{ws}/channels", body=body))
+
+
+def cmd_channels_set(args):
+    """Change a live channel (PUT takes the full state; kai.py merges your flags into the current one)."""
+    ws = workspace(args)
+    ch = find_channel(ws, args.channel_id)
     body = {k: ch.get(k) for k in ("slug", "admin_chat_notifications", "agent_id", "agent_version_mode",
                                    "enabled", "bitrix_settings", "amo_settings", "email_settings")}
+    # GET returns BitrixSettings (domain/openline_id/ignore_filter); PUT expects BitrixSettingsInput (ignore_filter [+webhook_url])
+    if body.get("bitrix_settings"):
+        body["bitrix_settings"] = {"ignore_filter": body["bitrix_settings"].get("ignore_filter") or []}
+    # email passwords are write-only: omitted => keep current
     changes = {}
+    settings_key = PLATFORM_SETTINGS.get(ch.get("platform"))
+    if args.settings_file:
+        if not settings_key:
+            die(f"channel platform {ch.get('platform')!r} has no editable settings block (only bitrix/amo/email)")
+        changes[settings_key] = read_json_file(args.settings_file)
     if args.agent_id is not None:
         changes["agent_id"] = args.agent_id
     if args.mode is not None:
@@ -314,8 +336,10 @@ def cmd_channels_set(args):
     if args.slug is not None:
         changes["slug"] = args.slug
     if not changes:
-        die("nothing to change (pass --agent-id / --mode / --enabled|--disabled / --slug / ...)")
+        die("nothing to change (pass --agent-id / --mode / --enabled|--disabled / --slug / --settings-file ...)")
     body.update(changes)
+    if not body.get("agent_id"):
+        die("this channel has no agent bound and PUT requires one — pass --agent-id <agent_id> as well")
     diff = ", ".join(f"{k}: {ch.get(k)!r} -> {v!r}" for k, v in changes.items())
     _confirm(f"\n  UPDATE live channel '{ch.get('slug')}' ({ch['id']}, platform={ch.get('platform')})\n"
              f"  target: {base_url()}  (affects live conversations on this channel)\n"
@@ -741,6 +765,28 @@ def cmd_conversations_list(args):
     print_json(out)
 
 
+def cmd_conversations_new(args):
+    """Create a conversation on a web channel (debug channel => debug conversation; other web channel => bot greets)."""
+    ws = workspace(args)
+    ch = find_channel(ws, args.channel)
+    user_id = args.user_id
+    if not user_id:
+        if ch.get("slug") == DEBUG_CHANNEL_SLUG:
+            user_id = request("POST", f"/workspaces/{ws}/users", body={"fields": kv_pairs(args.field)})["id"]
+        else:
+            user_id = request("GET", f"/workspaces/{ws}/users/me")["id"]   # your own web user (test-chat owner)
+    conv = request("POST", f"/workspaces/{ws}/conversations", body={
+        "user_id": user_id,
+        "agent_id": args.agent,
+        "agent_version_mode": args.mode,
+        "channel_id": ch["id"],
+        "tags": args.tag or [],
+        "conversation_fields": kv_pairs(args.conv_field),
+    })
+    print_json({"conversation_id": conv["id"], "user_id": user_id, "channel_id": ch["id"],
+                "channel_slug": ch.get("slug"), "agent_id": args.agent, "mode": args.mode})
+
+
 def cmd_conversations_get(args):
     ws = workspace(args)
     print_json(request("GET", f"/workspaces/{ws}/conversations/{args.conversation_id}"))
@@ -788,8 +834,13 @@ def build_parser():
     sub.add_parser("model-presets", help="list valid model_preset names").set_defaults(func=cmd_model_presets)
     chs = sub.add_parser("channels", help="list channels / change a channel's agent & mode").add_subparsers(dest="sub", required=True)
     chs.add_parser("list", parents=[ws], help="list channels (find the debug channel)").set_defaults(func=cmd_channels)
+    g = chs.add_parser("create", parents=[ws], help="create an email/bitrix channel from a JSON file (POST body)")
+    g.add_argument("--file", required=True, help="JSON: {slug, platform: email|bitrix, agent_id, agent_version_mode?, email_settings|bitrix_settings}")
+    g.set_defaults(func=cmd_channels_create)
     g = chs.add_parser("set", parents=[ws], help="update a live channel (GATED — confirmation)")
     g.add_argument("channel_id", help="channel id or slug")
+    g.add_argument("--settings-file", dest="settings_file",
+                   help="JSON replacing the platform block: bitrix {ignore_filter, webhook_url?} / amo {disabled_sources, source_id} / email EmailSettingsInput")
     g.add_argument("--agent-id", dest="agent_id")
     g.add_argument("--mode", choices=["draft", "latest"], help="agent_version_mode")
     g.add_argument("--enabled", dest="enabled", action="store_true", default=None)
@@ -909,6 +960,15 @@ def build_parser():
     g.add_argument("--order", choices=["asc", "desc"], default="desc")
     g.add_argument("--limit", type=int, default=50); g.add_argument("--all", action="store_true")
     g.set_defaults(func=cmd_conversations_list)
+    g = cv.add_parser("new", parents=[ws], help="create a conversation on a web channel (your test-chat, or debug)")
+    g.add_argument("--channel", required=True, help="channel id or slug (e.g. 'debug' or a web channel)")
+    g.add_argument("--agent", required=True, help="agent id")
+    g.add_argument("--mode", choices=["draft", "latest"], default="latest")
+    g.add_argument("--user-id", dest="user_id", help="default: your own web user (`users me`); on the debug channel a new synthetic user")
+    g.add_argument("--field", action="append", help="user field key=value for the synthetic debug user (repeatable)")
+    g.add_argument("--conv-field", dest="conv_field", action="append", help="conversation field key=value (repeatable)")
+    g.add_argument("--tag", action="append")
+    g.set_defaults(func=cmd_conversations_new)
     g = cv.add_parser("get", parents=[ws]); g.add_argument("conversation_id"); g.set_defaults(func=cmd_conversations_get)
     g = cv.add_parser("dump", parents=[ws], help="full transcript (any conversation); --json for raw export")
     g.add_argument("conversation_id"); g.add_argument("--json", action="store_true")

@@ -53,6 +53,9 @@ kai.py members list --workspace <ws>        # member accounts of the workspace
 
 **Requirements:** Python 3.
 
+Token management (`/members/api-token`: view / create / revoke) is cookie-session only —
+with a Bearer token the server answers 403, so `kai.py` has no command for it; use the UI.
+
 Mint the token in the UI: click your name in the sidebar → `/account` → **API Token** →
 `Generate`. The full `kai_...` value is shown **once** — copy it. The token acts as your
 session across **all** your workspaces with full access. It **cannot** manage tokens
@@ -93,14 +96,26 @@ A channel runs an agent in `agent_version_mode` `latest` (newest published `vN`)
 `draft`. To point a channel at another agent, flip it to the draft, or disable it:
 
 ```bash
-kai.py channels list                                   # id / slug / platform / agent / mode / enabled
+kai.py channels list                                   # id / slug / platform / agent / mode / enabled / settings
 kai.py channels set <channel_id|slug> --mode draft     # GATED (confirm) — affects live traffic
 kai.py channels set <channel_id|slug> --agent-id <id> --enabled|--disabled
+kai.py channels set <channel_id|slug> --settings-file amo.json   # replace the platform block (see below)
+kai.py channels create --file channel.json             # new email|bitrix channel (server verifies mailbox/portal)
 ```
 
 `channels set` reads the channel, merges your flags and PUTs the full state back (channel
 platform settings — email/bitrix/amo — are carried over untouched; write-only passwords stay
-as they are). The `debug` channel cannot be renamed or disabled.
+as they are). `--settings-file` replaces the platform block instead: bitrix
+`{"ignore_filter": [...], "webhook_url": null}` (non-empty `webhook_url` is re-verified on
+the portal), amo `{"disabled_sources": [...], "source_id": null|int}`, email
+`EmailSettingsInput` (omit passwords to keep them). A channel with no agent bound (e.g.
+`debug`) can only be PUT together with `--agent-id`. The `debug` channel cannot be renamed
+or disabled. `channels create` takes the POST body as JSON — `slug`, `platform`
+(`email`|`bitrix`), `agent_id`, optional `agent_version_mode`, plus `email_settings`
+(`EmailSettingsInput`, passwords required) or `bitrix_settings` (`webhook_url`,
+`openline_id`, `ignore_filter`); the server does a loopback/portal check (up to 30 s) and
+returns 400 without creating anything if it fails. Other platforms (tg, vk, web, ...) are
+created in the UI.
 
 ### Config file format
 
@@ -175,8 +190,13 @@ Known user field keys (rendered into the prompt): `fullname`, `phone`, `email`, 
 
 **Clean up** when done: every `debug new` creates a synthetic user + conversation.
 `kai.py users delete <user_id>` cascade-deletes the debug user with all its conversations
-(messages, fields, tags); the server refuses it for non-debug users. `kai.py users me` is your
-own (non-debug) web user — the owner of the web test-chat, which only you can push into.
+(messages, fields, tags); the server refuses it for non-debug users.
+
+**Web test-chat** (a real web channel instead of `debug`): `kai.py conversations new
+--channel <web_channel> --agent <id> --mode latest` creates a conversation owned by your own
+web user (`kai.py users me`, get-or-create, non-debug) — the bot greets on creation, and only
+you can push messages into it. `--channel debug` is equivalent to `debug new`. Such
+conversations are not deleted by `users delete` (your user is not a debug user).
 
 ## Workflow 3 — eval an agent
 
@@ -277,6 +297,8 @@ conversation into further programmatic analysis. Conversation `status` values:
 | `conversations list` → 400 "agent_id filter requires channel_id" | `--agent-id` only works together with `--channel-id`. |
 | `debug new` → 400 "no published version" | `--mode latest` on an agent that was never published; use `--mode draft` or `config publish`. |
 | `users delete` / `users fields` → 400 | Only debug (synthetic) users can be deleted/edited; real end-users are read-only. |
+| `channels set` → "no agent bound" / 400 "Agent not found" | PUT needs a full state incl. `agent_id`; pass `--agent-id`. |
+| `channels create` → 400 | Validation or the loopback/portal check failed (`{"error": ...}` says which); nothing was created. |
 | Connection error | `KAI_BASE_URL` is wrong or unreachable. |
 
 ## References
