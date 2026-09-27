@@ -78,7 +78,7 @@ kai.py config publish <agent_id>                       # NEW immutable vN — GA
 
 `config push` always targets the draft (only the draft is editable; pushing a published
 version is rejected with "Only draft version can be updated"). On a rejected push `kai.py`
-prints the validation reason (empty/too-long prompt > 50000 chars, bad Jinja, unknown
+prints the validation reason (empty/too-long prompt > 100000 chars, bad Jinja, unknown
 preset) — fix the file and push again. `PUBLISHED` ⟺ the agent's
 `draft_version_hash == latest_version_hash` (so you can tell if the draft has unpublished edits).
 
@@ -219,7 +219,7 @@ conversation into further programmatic analysis.
 | Permission denied | Tried to manage tokens over the API (do it in the UI), wrong workspace, or you're not the chat owner. |
 | "not found" on a workspace command | Wrong `--workspace`, or the resource lives in another workspace. `kai.py workspaces` to list. |
 | `config push` rejected: "Only draft version can be updated" | Push only edits the **draft**; a published `vN` is immutable. Re-pull with `--mode draft` and push that. |
-| `config push` rejected: prompt / preset / Jinja | Config validation. Fix the file (prompt ≤50000 chars, valid Jinja, `model_preset` from `kai.py model-presets`) and push again. |
+| `config push` rejected: prompt / preset / Jinja | Config validation. Fix the file (prompt ≤100000 chars, valid Jinja, `model_preset` from `kai.py model-presets`) and push again. |
 | `debug say` prints "no new messages within Ns" | Queue worker not consuming the turn; check the worker is up, or raise `--timeout`. |
 | Connection error | `KAI_BASE_URL` is wrong or unreachable. |
 
