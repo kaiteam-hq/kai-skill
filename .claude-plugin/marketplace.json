@@ -9,7 +9,7 @@
       "name": "kai-api",
       "source": "./",
       "description": "Configure, debug, and eval KAI agents and analyze conversations via the public KAI API.",
-      "version": "0.2.1"
+      "version": "0.2.2"
     }
   ]
 }

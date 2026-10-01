@@ -159,6 +159,28 @@ tool/extension model — don't reconstruct it here:
 - catalog (every extension's `name` / `settings` / tools / modes / arg shapes, and the
   `{extension, name, args}` call shape): `${KAI_BASE_URL}/doc/ru/agent-extensions`
 
+### Writing the prompt — OpenAI per-model guides
+
+Agents run on OpenAI GPT models, and the preset name encodes the model (`gpt-5-6-luna` →
+GPT-5.6 Luna; see `kai.py model-presets`). What works in a prompt shifts between
+generations: e.g. GPT-5.5+ prefers short outcome-first prompts over walls of
+ALWAYS/NEVER/MUST, and GPT-5.6 is terser by default, so a blanket "be brief" can clip its
+replies. Before a substantial prompt rewrite or a `model_preset` switch, read the
+**Prompting best practices** section (plus **Migration quickstart** when switching) of
+OpenAI's guide for that model:
+
+- `https://developers.openai.com/api/docs/guides/latest-model/<model>.md` (plain markdown;
+  in a browser: `.../latest-model?model=<model>`). `<model>` is the family without the
+  tier: `gpt-5`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gpt-5.5`, `gpt-5.6`; the whole GPT-6
+  family is under `gpt-6-astra`. There is no page per tier (Luna/Terra/Sol) or for 5.3.
+- model-agnostic basics (roles, structure, few-shot examples):
+  `https://developers.openai.com/api/docs/guides/prompt-engineering`
+
+The guides target API developers, and much of them is about coding agents and API
+parameters (`reasoning.effort`, `text.verbosity`, tool APIs). A KAI config has no such
+fields — the preset fixes them — so take only the advice about the prompt text. Check
+every guide-driven rewrite against the eval suite (Workflow 3) before publishing.
+
 ## Workflow 2 — debug an agent
 
 Run the agent against an ad-hoc conversation on the built-in `debug` channel. `kai.py`
@@ -311,3 +333,6 @@ conversation into further programmatic analysis. Conversation `status` values:
 - Tools & extensions model (tools/extensions, AUTO/HIDDEN, custom `tools`): `${KAI_BASE_URL}/doc/ru/tools`.
 - Extensions catalog (every extension's `name` / `settings` / tools / modes / args —
   needed to write `extensions` / `tools` / `on_timeout`): `${KAI_BASE_URL}/doc/ru/agent-extensions`.
+- OpenAI prompting guide for the preset's model (best practices, migration between models):
+  `https://developers.openai.com/api/docs/guides/latest-model/<model>.md` — see
+  "Writing the prompt" in Workflow 1 for the `<model>` values.
