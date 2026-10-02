@@ -161,20 +161,30 @@ tool/extension model — don't reconstruct it here:
 
 ### Writing the prompt — OpenAI per-model guides
 
-Agents run on OpenAI GPT models, and the preset name encodes the model (`gpt-5-6-luna` →
-GPT-5.6 Luna; see `kai.py model-presets`). What works in a prompt shifts between
-generations: e.g. GPT-5.5+ prefers short outcome-first prompts over walls of
-ALWAYS/NEVER/MUST, and GPT-5.6 is terser by default, so a blanket "be brief" can clip its
-replies. Before a substantial prompt rewrite or a `model_preset` switch, read the
-**Prompting best practices** section (plus **Migration quickstart** when switching) of
-OpenAI's guide for that model:
+Agents run on OpenAI GPT models; the preset name encodes the model (`kai.py model-presets`).
+Before a substantial prompt rewrite or a `model_preset` switch, read the **Prompting best
+practices** section (plus **Migration quickstart** when switching) of OpenAI's guide for
+that model. `<base>` = `https://developers.openai.com/api/docs/guides` (pages are plain
+markdown):
 
-- `https://developers.openai.com/api/docs/guides/latest-model/<model>.md` (plain markdown;
-  in a browser: `.../latest-model?model=<model>`). `<model>` is the family without the
-  tier: `gpt-5`, `gpt-5.1`, `gpt-5.2`, `gpt-5.4`, `gpt-5.5`, `gpt-5.6`; the whole GPT-6
-  family is under `gpt-6-astra`. There is no page per tier (Luna/Terra/Sol) or for 5.3.
-- model-agnostic basics (roles, structure, few-shot examples):
-  `https://developers.openai.com/api/docs/guides/prompt-engineering`
+| `model_preset` | Model | Guide |
+|---|---|---|
+| `gpt-6-luna` | GPT-6 Luna (reasoning) | `<base>/latest-model/gpt-6-astra.md` — one page for the GPT-6 family, examples are Astra-centric |
+| `gpt-5-6-luna` | GPT-5.6 Luna (reasoning) | `<base>/latest-model/gpt-5.6.md` |
+| `gpt-5-mini` | GPT-5 mini (reasoning) | `<base>/latest-model/gpt-5.md` |
+| `gpt-4-1-mini` | GPT-4.1 mini | `<base>/latest-model/gpt-4.1.md` |
+| `gpt-4o-mini` | GPT-4o mini | no dedicated guide — `<base>/prompt-engineering.md` |
+
+A preset not listed here maps the same way (`gpt-X-Y-<tier>` → `latest-model/gpt-X.Y.md`;
+there is no page per tier). `<base>/prompt-engineering.md` covers model-agnostic basics
+(roles, structure, few-shot examples) for any preset.
+
+What works in a prompt shifts between generations, so a prompt rarely carries over as is.
+GPT-4o/4.1 are non-reasoning: they need explicit, step-level instructions, and 4.1 follows
+them more literally than 4o (implicit rules are no longer inferred). The reasoning models do
+better with the goal and constraints than with a prescribed procedure. GPT-5.5+ prefer
+short outcome-first prompts over walls of ALWAYS/NEVER/MUST, and GPT-5.6 is terser by
+default, so a blanket "be brief" can clip its replies.
 
 The guides target API developers, and much of them is about coding agents and API
 parameters (`reasoning.effort`, `text.verbosity`, tool APIs). A KAI config has no such
@@ -334,5 +344,5 @@ conversation into further programmatic analysis. Conversation `status` values:
 - Extensions catalog (every extension's `name` / `settings` / tools / modes / args —
   needed to write `extensions` / `tools` / `on_timeout`): `${KAI_BASE_URL}/doc/ru/agent-extensions`.
 - OpenAI prompting guide for the preset's model (best practices, migration between models):
-  `https://developers.openai.com/api/docs/guides/latest-model/<model>.md` — see
-  "Writing the prompt" in Workflow 1 for the `<model>` values.
+  `https://developers.openai.com/api/docs/guides/latest-model/<model>.md` — see the
+  preset → guide table in "Writing the prompt" (Workflow 1).
